@@ -60,7 +60,8 @@ export class Client {
     const responseLine: string = await bufReader.readString("\n");
 
     // Each response MUST begin with a three-digit status indicator.
-    let [_, status, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
+    let [_, statusCode, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
+    let status = parseInt(statusCode);
     console.info(`[S] ${ responseLine }`);
 
     const headers = {
@@ -79,7 +80,7 @@ export class Client {
       }
     }
 
-    if (command === Command.CAPABILITIES) {
+    if (status < 200) {
       // We can't use 101 status for HTTP.
       status = 200;
     }
