@@ -56,20 +56,16 @@ export class Client {
   }
 
   async getResponse(command: CommandName): Response {
-    // The initial line of the response MUST NOT exceed 512 octets,
-    // which includes the response code and the terminating CRLF pair.
-    // const buffer = new Uint8Array(512);
-    // await this.#connection.read(buffer);
-    // const line = new TextDecoder().decode(buffer);
-
     const bufReader = new BufReader(this.#connection);
     const responseLine: string = await bufReader.readString("\n");
 
     // Each response MUST begin with a three-digit status indicator.
     let [_, status, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
+    console.info(`[S] ${ responseLine }`);
+
     const headers = {
-        "content-type": "text/plain;charset=utf-8",
-      };
+      "content-type": "text/plain;charset=utf-8",
+    };
 
     let body = "";
     if (MultiLiners.includes(command)) {
@@ -105,10 +101,12 @@ export class Client {
    * Command lines MUST NOT exceed 512 octets, which includes the terminating 
    * CRLF pair.  The arguments MUST NOT exceed 497 octets.
    */
-  async request(command: Command): Response {
+  async request(command: Command, args: string[] = []): Response {
     command = command.toUpperCase();
+    const line = [command, ...args].join(" ");
+    console.info(`[C] ${ line }`)
     const request = new TextEncoder().encode(
-      `${ command }\r\n`,
+      `${ line }\r\n`,
     );
     const _bytesWritten = await this.#connection.write(request);
     return this.getResponse(command);
