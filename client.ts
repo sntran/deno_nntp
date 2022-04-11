@@ -1,3 +1,5 @@
+import { BufReader } from "https://deno.land/std@0.134.0/io/mod.ts";
+
 export enum Command {
   ARTICLE = "ARTICLE", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.1
   BODY = "BODY", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.3
