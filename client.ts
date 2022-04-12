@@ -1,6 +1,11 @@
-import { BufReader } from "https://deno.land/std@0.134.0/io/mod.ts";
+/// <reference no-default-lib="true"/>
+/// <reference lib="deno.ns" />
+/// <reference lib="deno.worker" />
 
-export enum Command {
+import { BufReader } from "https://deno.land/std@0.134.0/io/mod.ts";
+import * as log from "https://deno.land/std@0.134.0/log/mod.ts";
+
+export const enum Command {
   ARTICLE = "ARTICLE", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.1
   BODY = "BODY", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.3
   CAPABILITIES = "CAPABILITIES", // https://datatracker.ietf.org/doc/html/rfc3977#section-5.2
@@ -21,58 +26,74 @@ export enum Command {
   POST = "POST", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.3.1
   QUIT = "QUIT", // https://datatracker.ietf.org/doc/html/rfc3977#section-5.4
   STAT = "STAT", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.4
-};
+  // Extensions
+  "AUTHINFO USER" = "AUTHINFO USER", // https://datatracker.ietf.org/doc/html/rfc4643#section-2.3
+  "AUTHINFO PASS" = "AUTHINFO PASS",
+  "AUTHINFO SASL" = "AUTHINFO SASL", // https://datatracker.ietf.org/doc/html/rfc4643#section-2.4
+}
 
 const MultiLiners = [
-  Command.HELP,
-  Command.CAPABILITIES,
-  Command.LISTGROUP,
-  Command.LIST,
   Command.ARTICLE,
-  Command.HEAD,
   Command.BODY,
-  Command.OVER,
+  Command.CAPABILITIES,
   Command.HDR,
-  Command.NEWNEWS,
+  Command.HEAD,
+  Command.HELP,
+  Command.LIST,
+  Command.LISTGROUP,
   Command.NEWGROUPS,
-] as const;
+  Command.NEWNEWS,
+  Command.OVER,
+];
+
+function isMultiLine(command: Command): command is Command {
+  return MultiLiners.includes(command as Command);
+}
+
+type parameter = string | number;
 
 export class Client {
-  #options?: ConnectOptions;
-  #connection?: TcpConn;
-  
-  constructor(options: ConnectOptions) {
+  #options: Deno.ConnectOptions;
+  #connection?: Deno.TcpConn;
+
+  static async connect(options: Deno.ConnectOptions = { port: 119 }) {
+    const client = new Client(options);
+    await client.connect();
+    return client;
+  }
+
+  constructor(options: Deno.ConnectOptions = { port: 119 }) {
     this.#options = options;
   }
 
   /**
    * Connects to NNTP server and returns its greeting.
    */
-  async connect() {
+  async connect(): Promise<Response> {
     this.#connection = await Deno.connect(this.#options);
     // When the connection is established, the NNTP server host
     // MUST send a greeting.
     return this.getResponse();
   }
 
-  async getResponse(command: CommandName): Response {
-    const bufReader = new BufReader(this.#connection);
-    const responseLine: string = await bufReader.readString("\n");
+  async getResponse(command?: Command): Promise<Response> {
+    const bufReader = new BufReader(this.#connection!);
+    const responseLine: string = await bufReader.readString("\n") || "";
 
     // Each response MUST begin with a three-digit status indicator.
-    let [_, statusCode, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
+    const [_, statusCode, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
     let status = parseInt(statusCode);
-    console.info(`[S] ${ responseLine }`);
+    log.debug(`[S] ${ responseLine }`);
 
     const headers = {
       "content-type": "text/plain;charset=utf-8",
     };
 
     let body = "";
-    if (MultiLiners.includes(command)) {
+    if (isMultiLine(command!)) {
       let ended = false;
       while (!ended) {
-        const line = await bufReader.readString("\n");
+        const line = await bufReader.readString("\n") || "";
         body += line;
         if (line.indexOf(".\r\n") === (line.length - 3)) {
           ended = true;
@@ -94,22 +115,26 @@ export class Client {
 
   /**
    * Sends a NNTP command to the server.
-   * 
+   *
    * Commands in NNTP MUST consist of a keyword, which MAY be followed by one.
    * or more arguments. A CRLF pair MUST terminate all commands.  Multiple
    * commands MUST NOT be on the same line.
-   * 
-   * Command lines MUST NOT exceed 512 octets, which includes the terminating 
+   *
+   * Command lines MUST NOT exceed 512 octets, which includes the terminating
    * CRLF pair.  The arguments MUST NOT exceed 497 octets.
    */
-  async request(command: Command, args: string[] = []): Response {
-    command = command.toUpperCase();
+  async request(command: Command, ...args: parameter[]): Promise<Response> {
+    command = command.toUpperCase() as Command;
     const line = [command, ...args].join(" ");
-    console.info(`[C] ${ line }`)
+    log.debug(`[C] ${ line }`)
     const request = new TextEncoder().encode(
       `${ line }\r\n`,
     );
-    const _bytesWritten = await this.#connection.write(request);
+    const _bytesWritten = await this.#connection?.write(request);
     return this.getResponse(command);
+  }
+
+  close() {
+    this.#connection?.close();
   }
 }
