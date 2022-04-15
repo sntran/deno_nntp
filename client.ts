@@ -52,17 +52,27 @@ function isMultiLine(command: Command): command is Command {
 
 type parameter = string | number;
 
-export class Client {
-  #options: Deno.ConnectOptions;
-  #connection?: Deno.TcpConn;
+export interface ConnectOptions extends Deno.ConnectOptions {
+  logLevel?: keyof typeof log.LogLevels,
+}
 
-  static async connect(options: Deno.ConnectOptions = { port: 119 }) {
+export class Client {
+  #options:ConnectOptions;
+  #connection?: Deno.TcpConn;
+  #logger?: log.Logger;
+
+  static async connect(options?: ConnectOptions) {
     const client = new Client(options);
     await client.connect();
     return client;
   }
 
-  constructor(options: Deno.ConnectOptions = { port: 119 }) {
+  constructor(options?: ConnectOptions) {
+    options = {
+      port: 119,
+      logLevel: "INFO",
+      ...options,
+    }
     this.#options = options;
   }
 
@@ -70,6 +80,19 @@ export class Client {
    * Connects to NNTP server and returns its greeting.
    */
   async connect(): Promise<Response> {
+    await log.setup({
+      handlers: {
+        console: new log.handlers.ConsoleHandler(this.#options.logLevel!),
+      },
+      loggers: {
+        nntp: {
+          level: this.#options.logLevel,
+          handlers: ["console"],
+        },
+      },
+    });
+
+    this.#logger = log.getLogger("nntp");
     this.#connection = await Deno.connect(this.#options);
     // When the connection is established, the NNTP server host
     // MUST send a greeting.
@@ -83,7 +106,7 @@ export class Client {
     // Each response MUST begin with a three-digit status indicator.
     const [_, statusCode, statusText = ""] = responseLine.match(/([1-5][0-9][0-9])\s(.*)/) || [];
     let status = parseInt(statusCode);
-    log.debug(`[S] ${ responseLine }`);
+    this.#logger!.debug(`[S] ${ responseLine }`);
 
     const headers = {
       "content-type": "text/plain;charset=utf-8",
@@ -126,7 +149,7 @@ export class Client {
   async request(command: Command, ...args: parameter[]): Promise<Response> {
     command = command.toUpperCase() as Command;
     const line = [command, ...args].join(" ");
-    log.debug(`[C] ${ line }`)
+    this.#logger!.debug(`[C] ${ line }`)
     const request = new TextEncoder().encode(
       `${ line }\r\n`,
     );
