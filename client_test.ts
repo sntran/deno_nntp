@@ -43,6 +43,13 @@ Deno.test("Client", async (t) => {
       assert(body, "should have a multi-line block body");
     });
 
+    await t.step("not returns terminating line in response", async () => {
+      const response = await client.request(Command.HELP);
+      const body = await response.text();
+      assert(!/\.$/.test(body), "should not have an ending dot");
+      assert(!/\.\r\n$/.test(body), "should not have terminating line");
+    });
+
     await t.step("with arguments", async () => {
       const response = await client.request(Command.GROUP, "php.announce");
       assert(response.status === 211);

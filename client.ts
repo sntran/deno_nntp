@@ -5,6 +5,10 @@
 import { BufReader } from "https://deno.land/std@0.134.0/io/mod.ts";
 import * as log from "https://deno.land/std@0.134.0/log/mod.ts";
 
+const DOT = ".".charCodeAt(0);
+const LF = "\n".charCodeAt(0);
+const CR = "\r".charCodeAt(0);
+
 export const enum Command {
   ARTICLE = "ARTICLE", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.1
   BODY = "BODY", // https://datatracker.ietf.org/doc/html/rfc3977#section-6.2.3
@@ -48,6 +52,11 @@ const MultiLiners = [
 
 function isMultiLine(command: Command): command is Command {
   return MultiLiners.includes(command as Command);
+}
+
+const TERMINATING_LINE = Uint8Array.from([DOT, CR, LF]);
+function isTerminatingLine(line: Uint8Array) {
+  return line.every((value, index) => value === TERMINATING_LINE[index]);
 }
 
 type parameter = string | number;
@@ -112,17 +121,23 @@ export class Client {
       "content-type": "text/plain;charset=utf-8",
     };
 
-    let body = "";
-    if (isMultiLine(command!)) {
-      let ended = false;
-      while (!ended) {
-        const line = await bufReader.readString("\n") || "";
-        body += line;
-        if (line.indexOf(".\r\n") === (line.length - 3)) {
-          ended = true;
+    const body = new ReadableStream({
+      start(controller) {
+        // Empty body if the command does not expect multi-line block response.
+        if (!isMultiLine(command!)) {
+          controller.enqueue("");
+          controller.close();
+        }
+      },
+      async pull(controller) {
+        const line = await bufReader.readSlice(LF);
+        if (isTerminatingLine(line!)) {
+          controller.close();
+        } else {
+          controller.enqueue(line);
         }
       }
-    }
+    });
 
     if (status < 200) {
       // We can't use 101 status for HTTP.
