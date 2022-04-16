@@ -50,6 +50,12 @@ Deno.test("Client", async (t) => {
       assert(!/\.\r\n$/.test(body), "should not have terminating line");
     });
 
+    await t.step("undo dot stuffing", async () => {
+      const response = await client.request(Command.HELP);
+      const body = await response.text();
+      assert(body.indexOf(".\r\n") === -1, "should not have any dot-stuffed line");
+    });
+
     await t.step("with arguments", async () => {
       const response = await client.request(Command.GROUP, "php.announce");
       assert(response.status === 211);
