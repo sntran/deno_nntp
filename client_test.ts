@@ -1,7 +1,7 @@
 import {
   assert,
-} from "https://deno.land/std@0.134.0/testing/asserts.ts";
-import { Client, Command } from "./client.ts";
+} from "./dev_deps.ts";
+import { Client, Command } from "./mod.ts";
 
 Deno.test("Client", async (t) => {
   const client = new Client({
@@ -24,9 +24,7 @@ Deno.test("Client", async (t) => {
 
     await t.step("for single-line response", async () => {
       const response = await client.request(Command.DATE);
-      // Even though DATE command is responded with 111, it is not
-      // an acceptable status code, so we normalize it to 200.
-      assert(response.ok, "should normalize status code to 200");
+      assert(response.status === 111);
       assert(response.statusText.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/), "should has yyyymmddhhmmss in statusText");
 
       const body = await response.text();
@@ -35,9 +33,7 @@ Deno.test("Client", async (t) => {
 
     await t.step("for multi-line response", async () => {
       const response = await client.request(Command.HELP);
-      // Even though HELP command is responded with 100, it is not
-      // an acceptable status code, so we normalize it to 200.
-      assert(response.ok, "should normalize status code to 200");
+      assert(response.status === 100);
 
       const body = await response.text();
       assert(body, "should have a multi-line block body");
@@ -58,8 +54,17 @@ Deno.test("Client", async (t) => {
 
     await t.step("with arguments", async () => {
       const response = await client.request(Command.GROUP, "php.announce");
-      assert(response.status === 211);
+      assert(response.status === 211, `should have status 211 instead of ${response.status}`);
       assert(response.statusText.match(/^(\d+) (\d+) (\d+) php.announce$/), "should have group information in statusText");
+      const body = await response.text();
+      assert(!body);
+    });
+
+    await t.step("GROUP vs LISTGROUP", async () => {
+      const response = await client.request(Command.LISTGROUP, "php.announce");
+      assert(response.status === 211);
+      const body = await response.text();
+      assert(body, "should have body");
     });
   });
 
