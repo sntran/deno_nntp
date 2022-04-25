@@ -59,6 +59,9 @@ export class Client {
   async #getResponse(): Promise<Response> {
     const response: Response = await Response.from(this.#connection as Deno.Reader);
     this.#logger!.debug(`[S] ${ response.status } ${ response.statusText }`);
+    for (const header of response.headers.entries()) {
+      this.#logger!.debug(`[S] ${ header[0] }: ${ header[1] }`);
+    }
     return response;
   }
 

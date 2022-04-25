@@ -1,0 +1,7 @@
+{
+  "tasks": {
+    "examples:http": "deno run --allow-env --allow-net --watch examples/http.ts",
+    "test": "deno test --allow-net",
+    "test:watch": "deno test --allow-net --watch"
+  }
+}
