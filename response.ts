@@ -5,18 +5,16 @@
 import { BufReader } from "./deps.ts";
 import { MultiLineResponseCodes } from "./model.ts";
 
-const TERMINATION = ".".charCodeAt(0);
-const LF = "\n".charCodeAt(0);
-const CR = "\r".charCodeAt(0);
+const TERMINATION = ".".charCodeAt(0); // 46
+const LF = "\n".charCodeAt(0); // 10
+const CR = "\r".charCodeAt(0); // 13
 
 const TERMINATING_LINE = Uint8Array.from([TERMINATION, CR, LF]);
 function isTerminatingLine(line: Uint8Array) {
   return line.every((value, index) => value === TERMINATING_LINE[index]);
 }
 
-const RESPONSE_REGEX = /(?<status>[1-5][0-9][0-9])\s+(?<statusText>.*)/u;
-
-function hasBody({ status, statusText }: { status: number, statusText: string}) {
+function hasBody(status: number, statusText: string): boolean {
   // The client MUST only use the status indicator itself to determine
   // the nature of the response, as is whether the code is single-line
   // or multi-line.
@@ -28,30 +26,97 @@ function hasBody({ status, statusText }: { status: number, statusText: string}) 
   if (status === 211) {
     // Here we don't know the command that was sent, so we cheat and check
     // the statusText instead for either the word "list" or "follow".
+
     // @FIXME Better way to handle 211.
+    // The server MAY add any text after the response code or last argument,
+    // as appropriate, and the client MUST NOT make decisions based on this text.
     return /list|follow/i.test(statusText);
   }
 
   return false;
 }
 
+const RESPONSE_REGEX = /(?<status>[1-5][0-9][0-9])(?:\s+(?<statusText>.*))?/u;
+// Each header line consists of a header name, a colon, a space, the header
+// content, and a CRLF, in that order. The name consists of one or more
+// printable US-ASCII characters other than colon and, for the purposes of this
+// specification, is not case sensitive.
+// The content MUST NOT contain CRLF; it MAY be empty.
+const HEADER_REGEX = /^(?<name>[\x21-\x39\x3B-\x7E]+):\s(?<value>[\x21-\xFF\s]*)/ui;
+
+async function parseStatus(reader: Deno.Reader): Promise<{ status: number, statusText: string }> {
+  const bufReader = BufReader.create(reader);
+  const responseLine: string = await bufReader.readString("\n") || "";
+  // Each response MUST begin with a three-digit status indicator.
+  const match = responseLine.match(RESPONSE_REGEX);
+  const groups = (match || {}).groups as { status?: string, statusText?: string };
+  return {
+    status: Number(groups.status || ""),
+    statusText: groups.statusText || "",
+  };
+}
+
+// An article consists of two parts: the headers and the body.  They are
+// separated by a single empty line, or in other words by two consecutive
+// CRLF pairs (if there is more than one empty line, the second and
+// subsequent ones are part of the body).
+
+// The headers of an article consist of one or more header lines.  Each
+// header line consists of a header name, a colon, a space, the header
+// content, and a CRLF, in that order.  The name consists of one or more
+// printable US-ASCII characters other than colon and, for the purposes
+// of this specification, is not case sensitive.  There MAY be more than
+// one header line with the same name.  The content MUST NOT contain
+// CRLF; it MAY be empty.
+async function parseHeaders(reader: Deno.Reader, headers: Headers = new Headers()): Promise<Headers> {
+  const bufReader = BufReader.create(reader);
+
+  // Checks the next 2 bytes to see if we can escape early.
+  const next = await bufReader.peek(2);
+  if (!next) return headers; // Nothing else
+  if (next[0] === TERMINATION) return headers; // End of article.
+  if (next[0] === CR && next[1] === LF) { // CLRF pair.
+    // Swallows that empty line.
+    await bufReader.readSlice(LF);
+    return headers;
+  }
+
+  // The next line should be a header line.
+  const buffer = await bufReader.readSlice(LF);
+  const line = new TextDecoder().decode(buffer!);
+  const { groups } = line.match(HEADER_REGEX) || {};
+  if (!groups) return headers;
+
+  // Appends to our `Headers`.
+  headers.append(groups.name, groups.value);
+  // Recursively parses the next header.
+  return parseHeaders(bufReader, headers);
+}
+
 class NNTPResponse extends Response {
   static async from(reader: Deno.Reader): Promise<Response> {
-    const bufReader = new BufReader(reader);
-    const responseLine: string = await bufReader.readString("\n") || "";
-    // Each response MUST begin with a three-digit status indicator.
-    const { groups } = responseLine.match(RESPONSE_REGEX) || {};
+    const bufReader = BufReader.create(reader);
+    const { status, statusText } = await parseStatus(bufReader);
+    const headers = new Headers();
+    // Parses headers if the response is generated from ARTICLE OR HEAD.
+    if (status === 220 || status === 221) {
+      await parseHeaders(bufReader, headers);
+    }
 
-    return new NNTPResponse(bufReader, groups as ResponseInit);
+    return new NNTPResponse(bufReader, {
+      status,
+      statusText,
+      headers,
+    });
   }
 
   constructor(reader: Deno.Reader, init: ResponseInit = {}) {
-    const bufReader = new BufReader(reader);
+    const bufReader = BufReader.create(reader);
     const status = Number(init.status || "");
     const statusText = init.statusText || "";
 
     let body = null;
-    if (hasBody({ status, statusText })) {
+    if (hasBody(status, statusText)) {
       // A multi-line data block is used in certain commands and responses.
       //
       // In a multi-line response, the block immediately follows the CRLF
