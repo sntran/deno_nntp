@@ -58,11 +58,37 @@ export class Client {
 
   async #getResponse(): Promise<Response> {
     const response: Response = await Response.from(this.#connection as Deno.Reader);
-    this.#logger!.debug(`[S] ${ response.status } ${ response.statusText }`);
-    for (const header of response.headers.entries()) {
-      this.#logger!.debug(`[S] ${ header[0] }: ${ header[1] }`);
+    const {
+      status,
+      statusText,
+      headers,
+    } = response;
+
+    const log = this.#logger!;
+
+    log.debug(`[S] ${ status } ${ statusText }`);
+    for (const header of headers.entries()) {
+      log.debug(`[S] ${ header[0] }: ${ header[1].replace(/\r?\n|\r/, "") }`);
     }
-    return response;
+
+    // Logs body if required.
+    const body = response.body?.pipeThrough(
+      new TransformStream({
+        transform(chunk, controller) {
+          log.debug(() => {
+            const msg = new TextDecoder().decode(chunk).replace(/\r?\n|\r/, "");
+            return `[S] ${ msg }`;
+          });
+          controller.enqueue(chunk);
+        },
+      }),
+    );
+
+    return new Response(body, {
+      status,
+      statusText,
+      headers,
+    });
   }
 
   /**

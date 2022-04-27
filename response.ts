@@ -110,52 +110,54 @@ class NNTPResponse extends Response {
     });
   }
 
-  constructor(reader: Deno.Reader, init: ResponseInit = {}) {
-    const bufReader = BufReader.create(reader);
+  constructor(body?: Deno.Reader | ReadableStream | null, init: ResponseInit = {}) {
     const status = Number(init.status || "");
     const statusText = init.statusText || "";
 
-    let body = null;
-    if (hasBody(status, statusText)) {
-      // A multi-line data block is used in certain commands and responses.
-      //
-      // In a multi-line response, the block immediately follows the CRLF
-      // at the end of the initial line of the response.
-      body = new ReadableStream({
-        async pull(controller) {
-          // The block consists of a sequence of zero or more "lines", each
-          // being a stream of octets ending with a CRLF pair. Apart from
-          // those line endings, the stream MUST NOT include the octets NUL,
-          // LF, or CR.
-          const line = await bufReader.readSlice(LF) || new Uint8Array();
+    if (!(body instanceof ReadableStream)) {
+      const bufReader = BufReader.create(body as Deno.Reader);
+      body = null;
+      if (hasBody(status, statusText)) {
+        // A multi-line data block is used in certain commands and responses.
+        //
+        // In a multi-line response, the block immediately follows the CRLF
+        // at the end of the initial line of the response.
+        body = new ReadableStream({
+          async pull(controller) {
+            // The block consists of a sequence of zero or more "lines", each
+            // being a stream of octets ending with a CRLF pair. Apart from
+            // those line endings, the stream MUST NOT include the octets NUL,
+            // LF, or CR.
+            const line = await bufReader.readSlice(LF) || new Uint8Array();
 
-          // The lines of the block MUST be followed by a terminating line
-          // consisting of a single termination octet followed by a CRLF pair
-          // in the normal way.
-          // ...
-          // Likewise, the terminating line ("." CRLF or %x2E.0D.0A) MUST NOT
-          // be considered part of the multi-line block; i.e., the recipient
-          // MUST ensure that any line beginning with the termination octet
-          // followed immediately by a CRLF pair is disregarded.
-          if (isTerminatingLine(line)) {
-            controller.close();
+            // The lines of the block MUST be followed by a terminating line
+            // consisting of a single termination octet followed by a CRLF pair
+            // in the normal way.
+            // ...
+            // Likewise, the terminating line ("." CRLF or %x2E.0D.0A) MUST NOT
+            // be considered part of the multi-line block; i.e., the recipient
+            // MUST ensure that any line beginning with the termination octet
+            // followed immediately by a CRLF pair is disregarded.
+            if (isTerminatingLine(line)) {
+              controller.close();
+            }
+            // If any line of the data block begins with the "termination octet"
+            // ("." or %x2E), that line MUST be "dot-stuffed" by prepending an
+            // additional termination octet to that line of the block.
+            //
+            // When a multi-line block is interpreted, the "dot-stuffing" MUST
+            // be undone; i.e., the recipient MUST ensure that, in any line
+            // beginning with the termination octet followed by octets other
+            // than a CRLF pair, that initial termination octet is disregarded.
+            else if (line[0] === TERMINATION) {
+              controller.enqueue(line.subarray(1));
+            }
+            else {
+              controller.enqueue(line);
+            }
           }
-          // If any line of the data block begins with the "termination octet"
-          // ("." or %x2E), that line MUST be "dot-stuffed" by prepending an
-          // additional termination octet to that line of the block.
-          //
-          // When a multi-line block is interpreted, the "dot-stuffing" MUST
-          // be undone; i.e., the recipient MUST ensure that, in any line
-          // beginning with the termination octet followed by octets other
-          // than a CRLF pair, that initial termination octet is disregarded.
-          else if (line[0] === TERMINATION) {
-            controller.enqueue(line.subarray(1));
-          }
-          else {
-            controller.enqueue(line);
-          }
-        }
-      });
+        });
+      }
     }
 
     super(body, {
