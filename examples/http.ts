@@ -3,7 +3,7 @@
 /// <reference no-default-lib="true"/>
 /// <reference lib="deno.ns" />
 /// <reference lib="deno.worker" />
-import { serve } from "https://deno.land/std@0.136.0/http/server.ts";
+import { serve, ConnInfo } from "https://deno.land/std@0.136.0/http/server.ts";
 import { router } from "https://crux.land/router@0.0.11";
 import { Client, Command } from "../mod.ts";
 
@@ -26,8 +26,7 @@ const {
  * console.assert("".split("/").filter(identity).length === 0);
  * ```
  */
-// @ts-nocheck should work with any argument.
-function identity(e: any) { return e; }
+function identity<T>(x: T): T { return x; }
 
 // Make a TCP connection to NNTP server
 const client = new Client({
@@ -87,7 +86,7 @@ function login(req: Request) {
   return new Response(body, {
     headers: {
       "content-type": "text/html;charset=utf-8",
-    }
+    },
   });
 }
 
@@ -112,7 +111,7 @@ async function authinfo(req: Request, formData: FormData, type = "USER"): Promis
   return response;
 }
 
-async function handle(req: Request, _ctx: any, { command, args = "" }: Record<string, string>) {
+async function handle(req: Request, _conn: ConnInfo, { command, args = "" }: Record<string, string>) {
   const url = new URL(req.url);
   const {
     headers: originalHeaders,
