@@ -118,7 +118,10 @@ async function handle(req: Request, _conn: ConnInfo, { command, args = "" }: Rec
     status,
     statusText,
     body,
-  } = await client.request(command as Command, ...args.split("/").filter(identity));
+  } = await client.request(
+    command as Command,
+    ...decodeURIComponent(args).split("/").filter(identity),
+  );
 
   // The NNTP server can respond to a client command with a a 480 response
   // to indicate that the client MUST authenticate and/or authorize in order
@@ -135,7 +138,8 @@ async function handle(req: Request, _conn: ConnInfo, { command, args = "" }: Rec
   // `X-Content-Type-Options: nosniff` to prevent browser from "sniffing"
   // the body content and deciding to popup for download instead.
   return new Response(body, {
-    status,
+    // NNTP can have status below 200, but HTTP can't, so we normalize.
+    status: status < 200 ? 200 : status,
     statusText,
     headers,
   });
