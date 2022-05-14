@@ -43,6 +43,7 @@ export interface NNTPClient  {
   hdr(field: string, messageId?: string): Promise<Response>
   hdr(field: string, range?: string): Promise<Response>
   hdr(field: string, arg?: string): Promise<Response>
+  authinfo(username: string, password?: string): Promise<Response>
 }
 
 export class Client implements NNTPClient {
@@ -2532,4 +2533,140 @@ export class Client implements NNTPClient {
   }
 
   //#endregion 8. Article Field Access Commands
+
+  //#region RFC 4643 - NNTP Authentication
+
+  /**
+   * The AUTHINFO USER and AUTHINFO PASS commands are used to present
+   * clear text credentials to the server.  These credentials consist of a
+   * username or a username plus a password (the distinction is that a
+   * password is expected to be kept secret, whereas a username is not;
+   * this does not directly affect the protocol but may have an impact on
+   * user interfaces).  The username is supplied through the AUTHINFO USER
+   * command, and the password through the AUTHINFO PASS command.
+   *
+   * If the server requires only a username, it MUST NOT give a 381
+   * response to AUTHINFO USER and MUST give a 482 response to AUTHINFO
+   * PASS.
+   *
+   * If the server requires both username and password, the former MUST be
+   * sent before the latter.  The server will need to cache the username
+   * until the password is received; it MAY require that the password be
+   * sent in the immediately next command (in other words, only caching
+   * the username until the next command is sent).  The server:
+   *
+   * -  MUST return a 381 response to AUTHINFO USER;
+   *
+   * -  MUST return a 482 response to AUTHINFO PASS if there is no cached
+   *    username;
+   *
+   * -  MUST use the argument of the most recent AUTHINFO USER for
+   *    authentication; and
+   *
+   * -  MUST NOT return a 381 response to AUTHINFO PASS.
+   *
+   * The server MAY determine whether a password is needed for a given
+   * username.  Thus the same server can respond with both 381 and other
+   * response codes to AUTHINFO USER.
+   *
+   * Should the client successfully present proper credentials, the server
+   * issues a 281 reply.  If the server is unable to authenticate the
+   * client, it MUST reject the AUTHINFO USER/PASS command with a 481
+   * reply.  If an AUTHINFO USER/PASS command fails, the client MAY
+   * proceed without authentication.  Alternatively, the client MAY try
+   * another authentication mechanism or present different credentials by
+   * issuing another AUTHINFO command.
+   *
+   * The AUTHINFO PASS command permits the client to use a clear-text
+   * password to authenticate.  A compliant implementation MUST NOT
+   * implement this command without also implementing support for TLS
+   * [NNTP-TLS].  Use of this command without an active strong encryption
+   * layer is deprecated, as it exposes the user's password to all parties
+   * on the network between the client and the server.  Any implementation
+   * of this command SHOULD be configurable to disable it whenever a
+   * strong encryption layer (such as that provided by [NNTP-TLS]) is not
+   * active, and this configuration SHOULD be the default.  The server
+   * will use the 483 response code to indicate that the datastream is
+   * insufficiently secure for the command being attempted (see Section
+   * 3.2.1 of [NNTP]).
+   *
+   * Note that a server MAY (but is not required to) allow white space
+   * characters in usernames and passwords.  A server implementation MAY
+   * blindly split command arguments at white space and therefore may not
+   * preserve the exact sequence of white space characters in the username
+   * or password.  Therefore, a client SHOULD scan the username and
+   * password for white space and, if any is detected, warn the user of
+   * the likelihood of problems.  The SASL PLAIN [PLAIN] mechanism is
+   * recommended as an alternative, as it does not suffer from these
+   * issues.
+   *
+   * Also note that historically the username is not canonicalized in any
+   * way.  Servers MAY use the [SASLprep] profile of the [StringPrep]
+   * algorithm to prepare usernames for comparison, but doing so may cause
+   * interoperability problems with legacy implementations.  If
+   * canonicalization is desired, the SASL PLAIN [PLAIN] mechanism is
+   * recommended as an alternative.
+   *
+   * ## Examples
+   *
+   * Example of successful AUTHINFO USER:
+   *
+   * ```ts
+   * import { Client } from "./client.ts";
+   * const client = await Client.connect();
+   * // [S] 200 NNTP Service Ready, posting permitted
+   * await client.authinfo("wilma");
+   * // [C] AUTHINFO USER wilma
+   * // [S] 281 Authentication accepted
+   * ```
+   *
+   * Example of successful AUTHINFO USER/PASS:
+   *
+   * ```ts
+   * import { Client } from "./client.ts";
+   * const client = await Client.connect();
+   * // [S] 200 NNTP Service Ready, posting permitted
+   * await client.authinfo("fred", "flintstone");
+   * // [C] AUTHINFO USER fred
+   * // [S] 381 Enter passphrase
+   * // [C] AUTHINFO PASS flintstone
+   * // [S] 281 Authentication accepted
+   * ```
+   *
+   * Example of AUTHINFO USER/PASS requiring a security layer:
+   *
+   * ```ts
+   * import { Client } from "./client.ts";
+   * const client = await Client.connect();
+   * // [S] 200 NNTP Service Ready, posting permitted
+   * await client.authinfo("fred@stonecanyon.example.com");
+   * // [C] AUTHINFO USER fred@stonecanyon.example.com
+   * // [S] 483 Encryption or stronger authentication required
+   * ```
+   *
+   * Example of failed AUTHINFO USER/PASS:
+   *
+   * ```ts
+   * import { Client } from "./client.ts";
+   * const client = await Client.connect();
+   * // [S] 200 NNTP Service Ready, posting permitted
+   * await client.authinfo("barney", "flintstone");
+   * // [C] AUTHINFO USER barney
+   * // [S] 381 Enter passphrase
+   * // [C] AUTHINFO PASS flintstone
+   * // [S] 481 Authentication failed
+   * ```
+   *
+   * @returns 281 status if authentication accepted, 481 if rejected.
+   */
+  async authinfo(username: string, password?: string): Promise<Response> {
+    let response = await this.request("AUTHINFO USER", username);
+    if (response.status === 381) {
+      response = await this.request("AUTHINFO PASS", password);
+    }
+
+    return response;
+  }
+
+  //#endregion RFC 4643 - NNTP Authentication
 }
