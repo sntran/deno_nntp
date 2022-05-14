@@ -2,12 +2,12 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="deno.worker" />
 
-import { log } from "./deps.ts";
+import { StringReader, readerFromStreamReader, copy, log } from "./deps.ts";
 
-import { Command } from "./model.ts";
-import { Response } from "./response.ts";
+import { Command, } from "./model.ts";
+import { Response, } from "./response.ts";
 
-type parameter = string | number;
+type parameter = string | number | undefined;
 
 export interface ConnectOptions extends Deno.ConnectOptions {
   logLevel?: keyof typeof log.LogLevels,
@@ -66,9 +66,9 @@ export class Client {
 
     const log = this.#logger!;
 
-    log.debug(`[S] ${ status } ${ statusText }`);
+    log.info(`[S] ${ status } ${ statusText }`);
     for (const header of headers.entries()) {
-      log.debug(`[S] ${ header[0] }: ${ header[1].replace(/\r?\n|\r/, "") }`);
+      log.info(`[S] ${ header[0] }: ${ header[1].replace(/\r?\n|\r/, "") }`);
     }
 
     // Logs body if required.
@@ -101,14 +101,22 @@ export class Client {
    * Command lines MUST NOT exceed 512 octets, which includes the terminating
    * CRLF pair.  The arguments MUST NOT exceed 497 octets.
    */
-  async request(command: Command, ...args: parameter[]): Promise<Response> {
-    command = command.toUpperCase() as Command;
-    const line = [command, ...args].join(" ");
-    this.#logger!.debug(`[C] ${ line }`)
-    const request = new TextEncoder().encode(
-      `${ line }\r\n`,
-    );
-    const _bytesWritten = await this.#connection?.write(request);
+  async request(command: string, ...args: parameter[]): Promise<Response>;
+  async request(command: Command, ...args: parameter[]): Promise<Response>;
+  async request(stream: ReadableStream, ...args: parameter[]): Promise<Response>;
+  async request(input: Command | string | ReadableStream, ...args: parameter[]): Promise<Response> {
+    let reader: Deno.Reader;
+    if (typeof input === "string") {
+      input = input.toUpperCase() as Command;
+      const line = [input, ...args].join(" ");
+      this.#logger!.info(`[C] ${ line }`);
+      reader = new StringReader(`${ line }\r\n`);
+    } else {
+      reader = readerFromStreamReader(input.getReader());
+    }
+
+    const writer = this.#connection!;
+    const _bytesWritten = await copy(reader, writer);
     return this.#getResponse();
   }
 

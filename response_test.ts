@@ -1,5 +1,8 @@
 import {
   StringReader,
+} from "./deps.ts";
+
+import {
   assert,
   assertEquals,
   assertObjectMatch,
@@ -97,6 +100,25 @@ Deno.test("Response", async (t) => {
         statusText: "list below",
       });
       body = await response.text();
+      assertEquals(body, "foobar\r\n");
+    });
+
+    await t.step("can also take a ReadableStream as body and just return new Response from it", async () => {
+      const status = 101;
+      const statusText = "capabilities follow";
+      let response = new Response(new StringReader("foobar\r\n.\r\n"), {
+        status,
+        statusText,
+      });
+
+      response = new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+      });
+
+      assertEquals(response.status, status);
+      assertEquals(response.statusText, statusText);
+      const body = await response.text();
       assertEquals(body, "foobar\r\n");
     });
   });
