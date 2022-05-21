@@ -4,8 +4,7 @@
 
 import { StringReader, readerFromStreamReader, copy, log } from "./deps.ts";
 
-import { Command, Article } from "./model.ts";
-import { Response, } from "./response.ts";
+import { Command, Response, Article } from "./mod.ts";
 
 type parameter = string | number | undefined;
 type wildmat = string;
@@ -1413,13 +1412,11 @@ export class Client implements NNTPClient {
    * // [S] 440 Posting not permitted
    * ```
    */
-  async post(article: Article = {}): Promise<Response> {
-    const { body, } = article;
-
+  async post(article?: Article): Promise<Response> {
     const response = await this.request(Command.POST);
 
-    // If no body is provided, it means the user will send post data later.
-    if (!body) {
+    // If no article is provided, it means the user will send it later.
+    if (!article) {
       return response;
     }
 
@@ -1428,7 +1425,7 @@ export class Client implements NNTPClient {
       return response;
     }
 
-    return this.request(this.#articleToReadableStream(article));
+    return this.request(article.stream());
   }
 
   /**
@@ -1629,13 +1626,11 @@ export class Client implements NNTPClient {
    *
    * @returns
    */
-  async ihave(messageId: string, article: Article = {}): Promise<Response> {
-    const { body, } = article;
-
+  async ihave(messageId: string, article?: Article): Promise<Response> {
     const response = await this.request(Command.IHAVE, messageId);
 
-    // If no body is provided, it means the user will send article later.
-    if (!body) {
+    // If no article is provided, it means the user will send it later.
+    if (!article) {
       return response;
     }
 
@@ -1644,52 +1639,7 @@ export class Client implements NNTPClient {
       return response;
     }
 
-    return this.request(this.#articleToReadableStream(article));
-  }
-
-  /**
-   * Converts an Article object to a ReadableStream suitable for sending
-   * to NNTP server after a POST OR IHAVE.
-   */
-  #articleToReadableStream(article: Article): ReadableStream {
-    const { headers, body, } = article;
-
-    let reader: ReadableStreamDefaultReader;
-    const CRLF = new TextEncoder().encode("\r\n");
-
-    return new ReadableStream<Uint8Array>({
-      start(controller) {
-        new Headers(headers).forEach((value, key) => {
-          const chunk = new TextEncoder().encode(`${ key }: ${ value }`);
-          controller.enqueue(chunk);
-          controller.enqueue(CRLF);
-        });
-
-        controller.enqueue(CRLF);
-
-        if (typeof body === "string") {
-          controller.enqueue(new TextEncoder().encode(`${body}\r\n.\r\n`));
-          controller.close();
-        }
-      },
-      async pull(controller) {
-        // Should only be called here when body is not string.
-        if (!reader) {
-          reader = (body as ReadableStream).getReader();
-        }
-        const { done, value } = await reader.read();
-        // When no more data needs to be consumed, close the stream
-        if (done) {
-          // Since the intial `body` does not contain the termination line,
-          // we need to enqueue it as the last one to end the request.
-          controller.enqueue(new TextEncoder().encode(`\r\n.\r\n`));
-          controller.close();
-          return;
-        }
-        // Enqueue the next data chunk into our target stream
-        controller.enqueue(value);
-      },
-    });
+    return this.request(article.stream());
   }
 
   //#endregion 6.3. Article Posting
