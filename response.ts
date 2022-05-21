@@ -153,7 +153,7 @@ class NNTPResponse extends Response {
               controller.enqueue(line.subarray(1));
             }
             else {
-              controller.enqueue(line);
+              controller.enqueue(line.slice());
             }
           }
         });
