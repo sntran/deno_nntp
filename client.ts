@@ -173,7 +173,7 @@ export class Client implements NNTPClient {
     let reader: Deno.Reader;
     if (typeof input === "string") {
       input = input.toUpperCase() as Command;
-      const line = [input, ...args].join(" ");
+      const line = [input, ...args.map(normalize)].join(" ");
       this.#logger!.info(`[C] ${ line }`);
       reader = new StringReader(`${ line }\r\n`);
     } else {
@@ -2619,4 +2619,10 @@ export class Client implements NNTPClient {
   }
 
   //#endregion RFC 4643 - NNTP Authentication
+}
+
+function normalize(arg: parameter = "") {
+  // Wraps message-id with brackets if not already.
+  if (/^[^<][^@]+@[^>]+$/.test(arg as string)) return `<${ arg}>`;
+  return arg;
 }
