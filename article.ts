@@ -41,6 +41,10 @@ export class Article implements RequestInit {
 
         controller.enqueue(CRLF);
 
+        if (!body) {
+          controller.close();
+        }
+
         if (typeof body === "string") {
           controller.enqueue(encoder.encode(`${body}\r\n.\r\n`));
           controller.close();
