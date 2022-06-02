@@ -125,6 +125,9 @@ Deno.test("Response", async (t) => {
 });
 
 Deno.test("Response.from", async (t) => {
+  function getReader(lines: string[]) {
+    return new StringReader(lines.join("\r\n") + "\r\n");
+  }
 
   await t.step("status", async (t) => {
     await t.step("is a three-digit status indicator", async () => {
@@ -142,9 +145,6 @@ Deno.test("Response.from", async (t) => {
   });
 
   await t.step("headers", async (t) => {
-    function getReader(lines: string[]) {
-      return new StringReader(lines.join("\r\n") + "\r\n");
-    }
 
     await t.step("is empty when status not 220 or 221", async () => {
       for (let status = 100; status < 600 && status !== 220 && status !== 221; status++) {
@@ -240,6 +240,32 @@ Deno.test("Response.from", async (t) => {
 
       const body = await response.text();
       assertEquals(body, "This is just a test article.\r\n");
+    });
+  });
+
+  await t.step("body", async (t) => {
+    await t.step("is null when no body", async () => {
+      const reader = getReader([
+        `111`,
+      ]);
+      const response = await Response.from(reader);
+      assertEquals(response.body, null);
+    });
+
+    await t.step("is null when only headers", async () => {
+      const reader = getReader([
+        `221`,
+        `Path: pathost!demo!whitehouse!not-for-mail`,
+        `From: "Demo User" <nobody@example.net>`,
+        `Newsgroups: misc.test`,
+        `Subject: I am just a test article`,
+        `Date: 6 Oct 1998 04:38:40 -0500`,
+        `Organization: An Example Net, Uncertain, Texas`,
+        `Message-ID: <45223423@example.com>`,
+        `.`,
+      ]);
+      const response = await Response.from(reader);
+      assertEquals(response.body, null);
     });
   });
 });

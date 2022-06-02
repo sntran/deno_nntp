@@ -117,7 +117,7 @@ class NNTPResponse extends Response {
     if (!(body instanceof ReadableStream)) {
       const bufReader = BufReader.create(body as Deno.Reader);
       body = null;
-      if (hasBody(status, statusText)) {
+      if (status !== 221 && hasBody(status, statusText)) {
         // A multi-line data block is used in certain commands and responses.
         //
         // In a multi-line response, the block immediately follows the CRLF
