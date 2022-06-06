@@ -150,7 +150,7 @@ class NNTPResponse extends Response {
             // beginning with the termination octet followed by octets other
             // than a CRLF pair, that initial termination octet is disregarded.
             else if (line[0] === TERMINATION && line[1] === TERMINATION) {
-              controller.enqueue(line.subarray(1));
+              controller.enqueue(line.subarray(1).slice());
             }
             else {
               controller.enqueue(line.slice());
