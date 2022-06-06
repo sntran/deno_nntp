@@ -1,18 +1,45 @@
-import { parse  } from "https://deno.land/std@0.140.0/flags/mod.ts";
-import { readerFromStreamReader, copy } from "https://deno.land/std@0.140.0/streams/conversion.ts";
+#!/usr/bin/env -S deno run --allow-net --allow-env
 
-import { Client } from "../mod.ts";
+/**
+ * Usage:
+ *
+ * ```
+ * $ cli.ts capabilities
+ * # Fetches the body of an article and redirects to a file.
+ * $ cli.ts body <msg-id> > article.txt
+ * # Posts an article with custom headers and body from a file.
+ * $ cli.ts post \
+ *    --header "Message-ID: <abc@def>" \
+ *    -H "From: poster@example.com" \
+ *    --body article.txt
+ * # Sends an article with body from `stdin`.
+ * $ cat article.txt | cli.ts ihave <msg-id> \
+ *    --header "Message-ID: <abc@def>" \
+ *    -H "From: poster@example.com" \
+ *    -B -
+ */
+
+import { parse  } from "https://deno.land/std@0.142.0/flags/mod.ts";
+import { readerFromStreamReader, copy } from "../deps.ts";
+
+import { Client, Article, Response } from "../mod.ts";
 
 const flags = parse(Deno.args, {
   string: [
     "hostname", "port",
-    "user", "pass",
+    "username", "password",
+    "header", "body",
+  ],
+  collect: [
+    "header",
   ],
   alias: {
     "hostname": ["host", "h"],
     "port": "P",
-    "user": ["username", "u"],
-    "pass": ["password", "p"],
+    "username": ["user", "u"],
+    "password": ["pass", "p"],
+    "header": "H",
+    "body": "B",
   },
   default: {
     hostname: Deno.env.get("NNTP_HOSTNAME"),
@@ -25,6 +52,8 @@ const flags = parse(Deno.args, {
 const {
   hostname, port,
   username, password,
+  header,
+  body: bodyInput,
   _: [ command = "HELP", ...args ]
 } = flags;
 
@@ -38,17 +67,59 @@ if (username) {
   await client.authinfo(username, password);
 }
 
-const { status, statusText, headers, body } = await client.request(command as string, ...args);
+let block: Deno.FsFile | undefined;
+if (bodyInput === "-") {
+  block = Deno.stdin as Deno.FsFile;
+} else if (typeof bodyInput === "string") {
+  block = await Deno.open(bodyInput, {
+    read: false,
+    write: true,
+    create: true,
+    truncate: true,
+  });
+}
+
+let response: Response;
+if (block) {
+  const headers = [].concat(header).reduce((headers, header: string) => {
+    const [key, value] = header.split(/:\s?/);
+    headers.append(key, value);
+    return headers;
+  }, new Headers());
+
+  const article = new Article({
+    headers,
+    body: block.readable,
+  });
+
+  if (command === "post") {
+    response = await client.post(article);
+  } else if (command === "ihave") {
+    response = await client.ihave(args[0] as string, article);
+  }
+} else {
+  response = await client.request(command as string, ...args);
+}
 
 const encoder = new TextEncoder();
-const lines = [`${ status } ${statusText}`];
-headers.forEach((value, key) => {
-  lines.push(`${ key }: ${ value }`);
+const { status, statusText, headers, body } = response!;
+// Logs information to `stderr`.
+await Deno.stderr.write(encoder.encode(`${ status } ${statusText}`));
+
+const lines: string[] = [];
+headers.forEach((value: string, key: string) => {
+  lines.push(`${ key }: ${ value }\r\n`);
 });
-Deno.stdout.write(encoder.encode(lines.join("\r\n")));
+await Deno.stdout.write(encoder.encode(lines.join("")));
 
 if (body) {
-  Deno.stdout.write(encoder.encode("\r\n"));
+  if (lines.length) {
+    // Separates the headers and body with an empty line.
+    Deno.stdout.write(encoder.encode("\r\n"));
+  }
   const reader = readerFromStreamReader(body.getReader());
-  copy(reader, Deno.stdout);
+  await copy(reader, Deno.stdout);
 }
+
+// Adds back the terminating line for completeness.
+await Deno.stdout.write(encoder.encode(".\r\n"));
