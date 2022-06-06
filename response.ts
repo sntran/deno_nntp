@@ -149,7 +149,7 @@ class NNTPResponse extends Response {
             // be undone; i.e., the recipient MUST ensure that, in any line
             // beginning with the termination octet followed by octets other
             // than a CRLF pair, that initial termination octet is disregarded.
-            else if (line[0] === TERMINATION) {
+            else if (line[0] === TERMINATION && line[1] === TERMINATION) {
               controller.enqueue(line.subarray(1));
             }
             else {

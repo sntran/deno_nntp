@@ -72,7 +72,7 @@ Deno.test("Response", async (t) => {
     });
 
     await t.step("is full line from reader of line before terminating line", async () => {
-      for await (const status of MultiLineResponseCodes) {
+      for await (const status of MultiLineResponseCodes.filter(s => s !== 221)) {
         const response = new Response(new StringReader("foobar\r\n.\r\n"), { status });
         const body = await response.text();
         assertEquals(body, "foobar\r\n");
@@ -80,9 +80,14 @@ Deno.test("Response", async (t) => {
     });
 
     await t.step("undo dot-stuffing", async () => {
-      for await (const status of MultiLineResponseCodes) {
-        const response = new Response(new StringReader("..foobar\r\n.\r\n"), { status });
-        const body = await response.text();
+      for await (const status of MultiLineResponseCodes.filter(s => s !== 221)) {
+        let response = new Response(new StringReader("..foobar\r\n.\r\n"), { status });
+        let body = await response.text();
+        assertEquals(body, ".foobar\r\n");
+
+        // But it should not undo single-dot.
+        response = new Response(new StringReader(".foobar\r\n.\r\n"), { status });
+        body = await response.text();
         assertEquals(body, ".foobar\r\n");
       }
     });
@@ -212,7 +217,7 @@ Deno.test("Response.from", async (t) => {
 
     await t.step("is separated from the body by a single empty line", async () => {
       const reader = getReader([
-        `221`,
+        `220`,
         `Path: pathost!demo!whitehouse!not-for-mail`,
         `From: "Demo User" <nobody@example.net>`,
         `Newsgroups: misc.test`,
