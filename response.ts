@@ -3,13 +3,8 @@
 /// <reference lib="deno.worker" />
 
 import { BufReader } from "./deps.ts";
-import { MultiLineResponseCodes } from "./model.ts";
+import { MultiLineResponseCodes, TERMINATION, CR, LF, TERMINATING_LINE } from "./model.ts";
 
-const TERMINATION = ".".charCodeAt(0); // 46
-const LF = "\n".charCodeAt(0); // 10
-const CR = "\r".charCodeAt(0); // 13
-
-const TERMINATING_LINE = Uint8Array.from([TERMINATION, CR, LF]);
 function isTerminatingLine(line: Uint8Array) {
   return line.every((value, index) => value === TERMINATING_LINE[index]);
 }

@@ -2,9 +2,9 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="deno.worker" />
 
-import { StringReader, readerFromStreamReader, copy, log } from "./deps.ts";
+import { readerFromStreamReader, BufReader, log } from "./deps.ts";
 
-import { Command, Response, Article } from "./mod.ts";
+import { Command, Response, Article, TERMINATION, LF, TERMINATING_LINE } from "./mod.ts";
 
 type parameter = string | number | undefined;
 type wildmat = string;
@@ -170,18 +170,37 @@ export class Client implements NNTPClient {
   async request(command: Command, ...args: parameter[]): Promise<Response>;
   async request(stream: ReadableStream, ...args: parameter[]): Promise<Response>;
   async request(input: Command | string | ReadableStream, ...args: parameter[]): Promise<Response> {
-    let reader: Deno.Reader;
+    const writer = this.#connection!;
+
     if (typeof input === "string") {
       input = input.toUpperCase() as Command;
       const line = [input, ...args.map(normalize)].join(" ");
       this.#logger!.info(`[C] ${ line }`);
-      reader = new StringReader(`${ line }\r\n`);
+      writer.write(new TextEncoder().encode(`${ line }\r\n`));
     } else {
-      reader = readerFromStreamReader(input.getReader());
+      const reader = readerFromStreamReader(input.getReader());
+      // Uses a BufReader to read line by line.
+      const bufReader = BufReader.create(reader);
+
+      let gotEOF = false, bytesWritten = 0;
+      while (gotEOF === false) {
+        const line = await bufReader.readSlice(LF) || new Uint8Array();
+
+        if (line.every((value, index) => value === TERMINATING_LINE[index])) {
+          await writer.write(line.slice());
+          gotEOF = true;
+          break;
+        }
+
+        // Dot-stuffs the line with another TERMINATION before sending.
+        if (line[0] === TERMINATION) {
+          bytesWritten += await writer.write(Uint8Array.from([TERMINATION, ...line.slice()]));
+        } else {
+          bytesWritten += await writer.write(line.slice());
+        }
+      }
     }
 
-    const writer = this.#connection!;
-    const _bytesWritten = await copy(reader, writer);
     return this.#getResponse();
   }
 
