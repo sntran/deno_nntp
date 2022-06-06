@@ -33,16 +33,20 @@ export class Article implements RequestInit {
 
     const source: UnderlyingSource<Uint8Array> = {
       start(controller) {
+        // Enqueued all the header lines first.
+        const lines: string[] = [];
         headers.forEach((value, key) => {
-          const chunk = encoder.encode(`${ key }: ${ value }`);
-          controller.enqueue(chunk);
-          controller.enqueue(CRLF);
+          lines.push(`${ key }: ${ value }\r\n`);
         });
-
-        controller.enqueue(CRLF);
+        controller.enqueue(encoder.encode(lines.join("")));
 
         if (!body) {
           controller.close();
+          return;
+        }
+
+        if (lines.length) {
+          controller.enqueue(CRLF);
         }
 
         if (typeof body === "string") {
@@ -61,7 +65,7 @@ export class Article implements RequestInit {
           if (value) {
             controller.enqueue(value.slice());
           }
-          // controller.enqueue(value);
+
           // Since the intial `body` does not contain the termination line,
           // we need to enqueue it as the last one to end the request.
           controller.enqueue(encoder.encode(`.\r\n`));
