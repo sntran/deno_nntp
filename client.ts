@@ -10,7 +10,8 @@ type parameter = string | number | undefined;
 type wildmat = string;
 
 export interface ConnectOptions extends Deno.ConnectOptions {
-  logLevel?: keyof typeof log.LogLevels,
+  ssl?: boolean,
+  logLevel?: log.LevelName,
 }
 
 export interface NNTPClient  {
@@ -47,7 +48,7 @@ export interface NNTPClient  {
 
 export class Client implements NNTPClient {
   #options: ConnectOptions;
-  #connection?: Deno.TcpConn;
+  #connection?: Deno.TcpConn | Deno.TlsConn;
   #logger?: log.Logger;
 
   /**
@@ -89,20 +90,32 @@ export class Client implements NNTPClient {
    * ```
    */
   async connect(): Promise<Response> {
+    const {
+      hostname,
+      port,
+      ssl,
+      logLevel,
+    } = this.#options;
+
     await log.setup({
       handlers: {
-        console: new log.handlers.ConsoleHandler(this.#options.logLevel!),
+        console: new log.handlers.ConsoleHandler(logLevel!),
       },
       loggers: {
         nntp: {
-          level: this.#options.logLevel,
+          level: logLevel,
           handlers: ["console"],
         },
       },
     });
 
     this.#logger = log.getLogger("nntp");
-    this.#connection = await Deno.connect(this.#options);
+
+    if (ssl) {
+      this.#connection = await Deno.connectTls({ hostname, port });
+    } else {
+      this.#connection = await Deno.connect({ hostname, port });
+    }
     // When the connection is established, the NNTP server host
     // MUST send a greeting.
     return this.#getResponse();
