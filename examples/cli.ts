@@ -29,17 +29,21 @@ const flags = parse(Deno.args, {
     "hostname", "port",
     "username", "password",
     "header", "body",
+    "log-level",
   ],
+  boolean: "ssl",
   collect: [
     "header",
   ],
   alias: {
     "hostname": ["host", "h"],
     "port": "P",
+    "ssl":"S",
     "username": ["user", "u"],
     "password": ["pass", "p"],
     "header": "H",
     "body": "B",
+    "log-level": ["logLevel", "l"],
   },
   default: {
     hostname: Deno.env.get("NNTP_HOSTNAME"),
@@ -50,17 +54,19 @@ const flags = parse(Deno.args, {
 });
 
 const {
-  hostname, port,
+  hostname, port, ssl,
   username, password,
   header,
   body: bodyInput,
+  logLevel = "INFO",
   _: [ command = "HELP", ...args ]
 } = flags;
 
 const client = await Client.connect({
   hostname,
   port: Number(port),
-  logLevel: "WARNING",
+  ssl,
+  logLevel,
 });
 
 if (username) {
