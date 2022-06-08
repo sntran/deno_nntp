@@ -58,7 +58,7 @@ const {
   username, password,
   header,
   body: bodyInput,
-  logLevel = "INFO",
+  logLevel = "WARNING",
   _: [ command = "HELP", ...args ]
 } = flags;
 
@@ -78,10 +78,8 @@ if (bodyInput === "-") {
   block = Deno.stdin as Deno.FsFile;
 } else if (typeof bodyInput === "string") {
   block = await Deno.open(bodyInput, {
-    read: false,
-    write: true,
-    create: true,
-    truncate: true,
+    read: true,
+    write: false,
   });
 }
 
@@ -126,6 +124,3 @@ if (body) {
   const reader = readerFromStreamReader(body.getReader());
   await copy(reader, Deno.stdout);
 }
-
-// Adds back the terminating line for completeness.
-await Deno.stdout.write(encoder.encode(".\r\n"));
