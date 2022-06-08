@@ -197,19 +197,19 @@ export class Client implements NNTPClient {
 
       let gotEOF = false, bytesWritten = 0;
       while (gotEOF === false) {
-        const line = await bufReader.readSlice(LF) || new Uint8Array();
+        const line = (await bufReader.readSlice(LF))?.slice() || new Uint8Array();
 
         if (line.every((value, index) => value === TERMINATING_LINE[index])) {
-          await writer.write(line.slice());
+          await writer.write(line);
           gotEOF = true;
           break;
         }
 
         // Dot-stuffs the line with another TERMINATION before sending.
         if (line[0] === TERMINATION) {
-          bytesWritten += await writer.write(Uint8Array.from([TERMINATION, ...line.slice()]));
+          bytesWritten += await writer.write(Uint8Array.from([TERMINATION, ...line]));
         } else {
-          bytesWritten += await writer.write(line.slice());
+          bytesWritten += await writer.write(line);
         }
       }
     }
