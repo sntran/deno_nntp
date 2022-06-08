@@ -19,16 +19,19 @@
  *    -B -
  */
 
-import { parse  } from "https://deno.land/std@0.142.0/flags/mod.ts";
-import { readerFromStreamReader, copy } from "../deps.ts";
+import { parse } from "https://deno.land/std@0.142.0/flags/mod.ts";
+import { copy, readerFromStreamReader } from "../deps.ts";
 
-import { Client, Article, Response } from "../mod.ts";
+import { Article, Client, Response } from "../mod.ts";
 
 const flags = parse(Deno.args, {
   string: [
-    "hostname", "port",
-    "username", "password",
-    "header", "body",
+    "hostname",
+    "port",
+    "username",
+    "password",
+    "header",
+    "body",
     "log-level",
   ],
   boolean: "ssl",
@@ -38,7 +41,7 @@ const flags = parse(Deno.args, {
   alias: {
     "hostname": ["host", "h"],
     "port": "P",
-    "ssl":"S",
+    "ssl": "S",
     "username": ["user", "u"],
     "password": ["pass", "p"],
     "header": "H",
@@ -54,12 +57,15 @@ const flags = parse(Deno.args, {
 });
 
 const {
-  hostname, port, ssl,
-  username, password,
+  hostname,
+  port,
+  ssl,
+  username,
+  password,
   header,
   body: bodyInput,
   logLevel = "WARNING",
-  _: [ command = "HELP", ...args ]
+  _: [command = "HELP", ...args],
 } = flags;
 
 const client = await Client.connect({
@@ -108,11 +114,11 @@ if (block) {
 const encoder = new TextEncoder();
 const { status, statusText, headers, body } = response!;
 // Logs information to `stderr`.
-await Deno.stderr.write(encoder.encode(`${ status } ${statusText}`));
+await Deno.stderr.write(encoder.encode(`${status} ${statusText}`));
 
 const lines: string[] = [];
 headers.forEach((value: string, key: string) => {
-  lines.push(`${ key }: ${ value }\r\n`);
+  lines.push(`${key}: ${value}\r\n`);
 });
 await Deno.stdout.write(encoder.encode(lines.join("")));
 

@@ -1,14 +1,17 @@
 /// <reference no-default-lib="true"/>
 /// <reference lib="deno.ns" />
 /// <reference lib="deno.worker" />
-import type { ConnInfo, } from "https://deno.land/std@0.136.0/http/server.ts";
-import { Router, Handler, } from "https://raw.githubusercontent.com/sntran/hack-n-slash/main/mod.ts";
-import { Pool, Resource, } from "https://deno.land/x/pool@v0.1.0/mod.ts";
-import { Client, } from "https://raw.githubusercontent.com/sntran/nntp-client/main/mod.ts";
+import type { ConnInfo } from "https://deno.land/std@0.136.0/http/server.ts";
+import {
+  Handler,
+  Router,
+} from "https://raw.githubusercontent.com/sntran/hack-n-slash/main/mod.ts";
+import { Pool, Resource } from "https://deno.land/x/pool@v0.1.0/mod.ts";
+import { Client } from "https://raw.githubusercontent.com/sntran/nntp-client/main/mod.ts";
 
 interface Current {
-  group?: string,
-  article?: number,
+  group?: string;
+  article?: number;
 }
 
 // Because we are using a pool, the next client instance won't have the
@@ -20,7 +23,7 @@ const current: Current = {
   group: "",
   // Current article number
   article: 0,
-}
+};
 
 const pool = new Pool<Client>({
   min: 1,
@@ -32,7 +35,10 @@ const pool = new Pool<Client>({
       hostname: Deno.env.get("NNTP_HOSTNAME"),
       port: Number(Deno.env.get("NNTP_PORT")),
     });
-    await client.authinfo(Deno.env.get("NNTP_USER") || "", Deno.env.get("NNTP_PASS"));
+    await client.authinfo(
+      Deno.env.get("NNTP_USER") || "",
+      Deno.env.get("NNTP_PASS"),
+    );
 
     if (current.group) {
       await client.group(current.group);
@@ -52,7 +58,11 @@ const pool = new Pool<Client>({
 
 /** Shortcut */
 function command(command: string): Handler {
-  return async (_r: Request, _c: ConnInfo, params: Record<string, string> = {}) => {
+  return async (
+    _r: Request,
+    _c: ConnInfo,
+    params: Record<string, string> = {},
+  ) => {
     const client = await pool.get();
     const response: Response = await client.request(
       command,
@@ -67,8 +77,9 @@ function command(command: string): Handler {
       case 220: // ARTICLE
       case 221: // HEAD
       case 222: // BODY
-      case 223: {// LAST, NEXT, STAT
-        const [, n, _messageId] = statusText.match(/([\d]+)\s(<[\x21-\x7E]+>)/) || [];
+      case 223: { // LAST, NEXT, STAT
+        const [, n, _messageId] =
+          statusText.match(/([\d]+)\s(<[\x21-\x7E]+>)/) || [];
         current.article = Number(n);
         break;
       }
@@ -95,7 +106,7 @@ function command(command: string): Handler {
         "X-Content-Type-Options": "nosniff",
       },
     });
-  }
+  };
 }
 
 console.log("Listening on http://localhost:8000");

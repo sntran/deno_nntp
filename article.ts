@@ -1,4 +1,3 @@
-
 export class Article implements RequestInit {
   body?: BodyInit | null;
   headers: Headers;
@@ -10,9 +9,9 @@ export class Article implements RequestInit {
         headers: {
           "message-id": init,
         },
-      }
+      };
     }
-    this.headers =  new Headers(init.headers);
+    this.headers = new Headers(init.headers);
     this.body = init.body;
   }
 
@@ -36,7 +35,7 @@ export class Article implements RequestInit {
         // Enqueued all the header lines first.
         const lines: string[] = [];
         headers.forEach((value, key) => {
-          lines.push(`${ key }: ${ value }\r\n`);
+          lines.push(`${key}: ${value}\r\n`);
         });
         controller.enqueue(encoder.encode(lines.join("")));
 
@@ -75,7 +74,7 @@ export class Article implements RequestInit {
         // Enqueue the next data chunk into our target stream
         controller.enqueue(value.slice());
       },
-    }
+    };
 
     return new ReadableStream<Uint8Array>(source);
   }

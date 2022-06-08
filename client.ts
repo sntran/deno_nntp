@@ -2,48 +2,60 @@
 /// <reference lib="deno.ns" />
 /// <reference lib="deno.worker" />
 
-import { readerFromStreamReader, BufReader, log } from "./deps.ts";
+import { BufReader, log, readerFromStreamReader } from "./deps.ts";
 
-import { Command, Response, Article, TERMINATION, LF, TERMINATING_LINE } from "./mod.ts";
+import {
+  Article,
+  Command,
+  LF,
+  Response,
+  TERMINATING_LINE,
+  TERMINATION,
+} from "./mod.ts";
 
 type parameter = string | number | undefined;
 type wildmat = string;
 
 export interface ConnectOptions extends Deno.ConnectOptions {
-  ssl?: boolean,
-  logLevel?: log.LevelName,
+  ssl?: boolean;
+  logLevel?: log.LevelName;
 }
 
-export interface NNTPClient  {
-  capabilities(keyword?: string): Promise<Response>
-  modeReader(): Promise<Response>
-  quit(): Promise<Response>
-  group(group?: string): Promise<Response>
-  listgroup(group?: string, range?: string): Promise<Response>
-  last(): Promise<Response>
-  next(): Promise<Response>
-  article(number?: number): Promise<Response>
-  article(messageId?: string): Promise<Response>
-  head(number?: number): Promise<Response>
-  head(messageId?: string): Promise<Response>
-  body(number?: number): Promise<Response>
-  body(messageId?: string): Promise<Response>
-  stat(number?: number): Promise<Response>
-  stat(messageId?: string): Promise<Response>
-  post(article: Article): Promise<Response>
-  ihave(messageId: string, article: Article): Promise<Response>
-  date(): Promise<Response>
-  help(): Promise<Response>
-  newgroups(date: string, time: string, isGMT?: boolean): Promise<Response>
-  newnews(wildmat: wildmat, date: string, time: string, isGMT?: boolean): Promise<Response>
-  list(keyword?: string, arg?: wildmat|parameter): Promise<Response>
-  over(messageId?: string): Promise<Response>
-  over(range?: string): Promise<Response>
-  over(arg?: string): Promise<Response>
-  hdr(field: string, messageId?: string): Promise<Response>
-  hdr(field: string, range?: string): Promise<Response>
-  hdr(field: string, arg?: string): Promise<Response>
-  authinfo(username: string, password?: string): Promise<Response>
+export interface NNTPClient {
+  capabilities(keyword?: string): Promise<Response>;
+  modeReader(): Promise<Response>;
+  quit(): Promise<Response>;
+  group(group?: string): Promise<Response>;
+  listgroup(group?: string, range?: string): Promise<Response>;
+  last(): Promise<Response>;
+  next(): Promise<Response>;
+  article(number?: number): Promise<Response>;
+  article(messageId?: string): Promise<Response>;
+  head(number?: number): Promise<Response>;
+  head(messageId?: string): Promise<Response>;
+  body(number?: number): Promise<Response>;
+  body(messageId?: string): Promise<Response>;
+  stat(number?: number): Promise<Response>;
+  stat(messageId?: string): Promise<Response>;
+  post(article: Article): Promise<Response>;
+  ihave(messageId: string, article: Article): Promise<Response>;
+  date(): Promise<Response>;
+  help(): Promise<Response>;
+  newgroups(date: string, time: string, isGMT?: boolean): Promise<Response>;
+  newnews(
+    wildmat: wildmat,
+    date: string,
+    time: string,
+    isGMT?: boolean,
+  ): Promise<Response>;
+  list(keyword?: string, arg?: wildmat | parameter): Promise<Response>;
+  over(messageId?: string): Promise<Response>;
+  over(range?: string): Promise<Response>;
+  over(arg?: string): Promise<Response>;
+  hdr(field: string, messageId?: string): Promise<Response>;
+  hdr(field: string, range?: string): Promise<Response>;
+  hdr(field: string, arg?: string): Promise<Response>;
+  authinfo(username: string, password?: string): Promise<Response>;
 }
 
 export class Client implements NNTPClient {
@@ -72,7 +84,7 @@ export class Client implements NNTPClient {
       port: 119,
       logLevel: "INFO",
       ...options,
-    }
+    };
     this.#options = options;
   }
 
@@ -122,7 +134,9 @@ export class Client implements NNTPClient {
   }
 
   async #getResponse(): Promise<Response> {
-    const response: Response = await Response.from(this.#connection as Deno.Reader);
+    const response: Response = await Response.from(
+      this.#connection as Deno.Reader,
+    );
     const {
       status,
       statusText,
@@ -131,9 +145,9 @@ export class Client implements NNTPClient {
 
     const log = this.#logger!;
 
-    log.info(`[S] ${ status } ${ statusText }`);
+    log.info(`[S] ${status} ${statusText}`);
     for (const header of headers.entries()) {
-      log.info(`[S] ${ header[0] }: ${ header[1].replace(/\r?\n|\r/, "") }`);
+      log.info(`[S] ${header[0]}: ${header[1].replace(/\r?\n|\r/, "")}`);
     }
 
     // Logs body if required.
@@ -142,7 +156,7 @@ export class Client implements NNTPClient {
         transform(chunk, controller) {
           log.debug(() => {
             const msg = new TextDecoder().decode(chunk).replace(/\r?\n|\r/, "");
-            return `[S] ${ msg }`;
+            return `[S] ${msg}`;
           });
           controller.enqueue(chunk);
         },
@@ -181,15 +195,21 @@ export class Client implements NNTPClient {
    */
   async request(command: string, ...args: parameter[]): Promise<Response>;
   async request(command: Command, ...args: parameter[]): Promise<Response>;
-  async request(stream: ReadableStream, ...args: parameter[]): Promise<Response>;
-  async request(input: Command | string | ReadableStream, ...args: parameter[]): Promise<Response> {
+  async request(
+    stream: ReadableStream,
+    ...args: parameter[]
+  ): Promise<Response>;
+  async request(
+    input: Command | string | ReadableStream,
+    ...args: parameter[]
+  ): Promise<Response> {
     const writer = this.#connection!;
 
     if (typeof input === "string") {
       input = input.toUpperCase() as Command;
       const line = [input, ...args.map(normalize)].join(" ");
-      this.#logger!.info(`[C] ${ line }`);
-      writer.write(new TextEncoder().encode(`${ line }\r\n`));
+      this.#logger!.info(`[C] ${line}`);
+      writer.write(new TextEncoder().encode(`${line}\r\n`));
     } else {
       const reader = readerFromStreamReader(input.getReader());
       // Uses a BufReader to read line by line.
@@ -197,7 +217,8 @@ export class Client implements NNTPClient {
 
       let gotEOF = false, bytesWritten = 0;
       while (gotEOF === false) {
-        const line = (await bufReader.readSlice(LF))?.slice() || new Uint8Array();
+        const line = (await bufReader.readSlice(LF))?.slice() ||
+          new Uint8Array();
 
         if (line.every((value, index) => value === TERMINATING_LINE[index])) {
           await writer.write(line);
@@ -207,7 +228,9 @@ export class Client implements NNTPClient {
 
         // Dot-stuffs the line with another TERMINATION before sending.
         if (line[0] === TERMINATION) {
-          bytesWritten += await writer.write(Uint8Array.from([TERMINATION, ...line]));
+          bytesWritten += await writer.write(
+            Uint8Array.from([TERMINATION, ...line]),
+          );
         } else {
           bytesWritten += await writer.write(line);
         }
@@ -1814,7 +1837,7 @@ export class Client implements NNTPClient {
    * @returns List of new newsgroups (multi-line)
    */
   newgroups(date: string, time: string, isGMT?: boolean): Promise<Response> {
-    return this.request(Command.NEWGROUPS, date, time, isGMT ? "GMT": "");
+    return this.request(Command.NEWGROUPS, date, time, isGMT ? "GMT" : "");
   }
 
   /**
@@ -1869,8 +1892,19 @@ export class Client implements NNTPClient {
    * @param isGMT Whether date and time are given in GMT.
    * @returns List of new articles (multi-line)
    */
-  newnews(wildmat: wildmat, date: string, time: string, isGMT?: boolean): Promise<Response> {
-    return this.request(Command.NEWNEWS, wildmat, date, time, isGMT ? "GMT": "");
+  newnews(
+    wildmat: wildmat,
+    date: string,
+    time: string,
+    isGMT?: boolean,
+  ): Promise<Response> {
+    return this.request(
+      Command.NEWNEWS,
+      wildmat,
+      date,
+      time,
+      isGMT ? "GMT" : "",
+    );
   }
 
   /**
@@ -2026,7 +2060,7 @@ export class Client implements NNTPClient {
    * @param arg Specific to keyword, or a wildmat for groups of interest.
    * @returns Requested information (multi-line).
    */
-  list(keyword?: string, arg?: wildmat|parameter): Promise<Response> {
+  list(keyword?: string, arg?: wildmat | parameter): Promise<Response> {
     return this.request(Command.LIST, keyword, arg);
   }
 
@@ -2655,6 +2689,6 @@ export class Client implements NNTPClient {
 
 function normalize(arg: parameter = "") {
   // Wraps message-id with brackets if not already.
-  if (/^[^<][^@]+@[^>]+$/.test(arg as string)) return `<${ arg}>`;
+  if (/^[^<][^@]+@[^>]+$/.test(arg as string)) return `<${arg}>`;
   return arg;
 }

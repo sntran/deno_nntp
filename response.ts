@@ -3,7 +3,13 @@
 /// <reference lib="deno.worker" />
 
 import { BufReader } from "./deps.ts";
-import { MultiLineResponseCodes, TERMINATION, CR, LF, TERMINATING_LINE } from "./model.ts";
+import {
+  CR,
+  LF,
+  MultiLineResponseCodes,
+  TERMINATING_LINE,
+  TERMINATION,
+} from "./model.ts";
 
 function isTerminatingLine(line: Uint8Array) {
   return line.every((value, index) => value === TERMINATING_LINE[index]);
@@ -37,14 +43,20 @@ const RESPONSE_REGEX = /(?<status>[1-5][0-9][0-9])(?:\s+(?<statusText>.*))?/u;
 // printable US-ASCII characters other than colon and, for the purposes of this
 // specification, is not case sensitive.
 // The content MUST NOT contain CRLF; it MAY be empty.
-const HEADER_REGEX = /^(?<name>[\x21-\x39\x3B-\x7E]+):\s(?<value>[\x21-\xFF\s]*)/ui;
+const HEADER_REGEX =
+  /^(?<name>[\x21-\x39\x3B-\x7E]+):\s(?<value>[\x21-\xFF\s]*)/ui;
 
-async function parseStatus(reader: Deno.Reader): Promise<{ status: number, statusText: string }> {
+async function parseStatus(
+  reader: Deno.Reader,
+): Promise<{ status: number; statusText: string }> {
   const bufReader = BufReader.create(reader);
   const responseLine: string = await bufReader.readString("\n") || "";
   // Each response MUST begin with a three-digit status indicator.
   const match = responseLine.match(RESPONSE_REGEX);
-  const groups = (match || {}).groups as { status?: string, statusText?: string };
+  const groups = (match || {}).groups as {
+    status?: string;
+    statusText?: string;
+  };
   return {
     status: Number(groups.status || ""),
     statusText: groups.statusText || "",
@@ -63,7 +75,10 @@ async function parseStatus(reader: Deno.Reader): Promise<{ status: number, statu
 // of this specification, is not case sensitive.  There MAY be more than
 // one header line with the same name.  The content MUST NOT contain
 // CRLF; it MAY be empty.
-async function parseHeaders(reader: Deno.Reader, headers: Headers = new Headers()): Promise<Headers> {
+async function parseHeaders(
+  reader: Deno.Reader,
+  headers: Headers = new Headers(),
+): Promise<Headers> {
   const bufReader = BufReader.create(reader);
 
   // Checks the next 2 bytes to see if we can escape early.
@@ -105,7 +120,10 @@ class NNTPResponse extends Response {
     });
   }
 
-  constructor(body?: Deno.Reader | ReadableStream | null, init: ResponseInit = {}) {
+  constructor(
+    body?: Deno.Reader | ReadableStream | null,
+    init: ResponseInit = {},
+  ) {
     const status = Number(init.status || "");
     const statusText = init.statusText || "";
 
@@ -135,8 +153,7 @@ class NNTPResponse extends Response {
             // followed immediately by a CRLF pair is disregarded.
             if (isTerminatingLine(line)) {
               controller.close();
-            }
-            // If any line of the data block begins with the "termination octet"
+            } // If any line of the data block begins with the "termination octet"
             // ("." or %x2E), that line MUST be "dot-stuffed" by prepending an
             // additional termination octet to that line of the block.
             //
@@ -146,11 +163,10 @@ class NNTPResponse extends Response {
             // than a CRLF pair, that initial termination octet is disregarded.
             else if (line[0] === TERMINATION && line[1] === TERMINATION) {
               controller.enqueue(line.subarray(1).slice());
-            }
-            else {
+            } else {
               controller.enqueue(line.slice());
             }
-          }
+          },
         });
       }
     }
@@ -163,9 +179,11 @@ class NNTPResponse extends Response {
 
     // ... and override the `status` getter to return actual response code.
     Object.defineProperty(this, "status", {
-      get() { return status; },
+      get() {
+        return status;
+      },
     });
   }
 }
 
-export { NNTPResponse as Response }
+export { NNTPResponse as Response };
