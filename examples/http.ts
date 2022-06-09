@@ -60,11 +60,29 @@ function identity<T>(x: T): T {
   return x;
 }
 
+/**
+ * Proxies a HTTP request to NNTP server.
+ *
+ * Takes a HTTP request and returns a NNTP Response. The handler can optionally
+ * take a Client instance to talk to NNTP server; if not provided, starts its
+ * own instance. The third parameter defines the command and arguments to send
+ * to NNTP server.
+ */
 export async function handle(
   request: Request,
-  _c: ConnInfo,
+  context: Client,
+  params: Record<string, string>,
+): Promise<Response>;
+export async function handle(
+  request: Request,
+  context: ConnInfo,
+  params: Record<string, string>,
+): Promise<Response>;
+export async function handle(
+  request: Request,
+  context: Client | ConnInfo,
   { command, args = "" }: Record<string, string>,
-) {
+): Promise<Response> {
   //#region Authorization.
   const authorization = request.headers.get("Authorization");
   if (!authorization) {
@@ -80,26 +98,35 @@ export async function handle(
   const [, base64 = ""] = authorization.match(/^Basic\s+(.*)$/) || [];
   const [username, password] = atob(base64).split(":");
 
-  const client = await await Client.connect({
-    hostname: NNTP_HOSTNAME,
-    port: Number(NNTP_PORT),
-    ssl: true,
-    logLevel: "DEBUG",
-  });
+  if (!(context instanceof Client)) {
+    context = await Client.connect({
+      hostname: NNTP_HOSTNAME,
+      port: Number(NNTP_PORT),
+      ssl: true,
+      logLevel: "INFO",
+    });
+  }
+
   // Authenticates with provider.
-  await client.authinfo(username, password);
+  await context.authinfo(username, password);
   //#endregion Authorization
 
   // Checks if any group or article was selected before.
   const { group, article } = getCookies(request.headers);
   if (group) {
-    await client.group(group);
+    await context.group(group);
   }
   if (article) {
-    await client.stat(article);
+    await context.stat(article);
   }
 
-  const params = decodeURIComponent(args).split("/").filter(identity);
+  let params: string[];
+  if (typeof args === "string") {
+    params = args.split("/").filter(identity);
+  } else {
+    params = args;
+  }
+  params = params.map(decodeURIComponent);
 
   let response: Response = new Response();
   if (request.body) {
@@ -113,12 +140,12 @@ export async function handle(
     article.headers.delete("User-Agent");
 
     if (command === "post") {
-      response = await client.post(article);
+      response = await context.post(article);
     } else if (command === "ihave") {
-      response = await client.ihave(params[0], article);
+      response = await context.ihave(params[0], article);
     }
   } else {
-    response = await client.request(command, ...params);
+    response = await context.request(command as string, ...params);
   }
 
   const { status, statusText, headers: articleHeaders } = response;
@@ -184,7 +211,6 @@ export async function handle(
 
   return new Response(body, responseInit);
 }
-
 
 //#region Server
 if (import.meta.main) {
