@@ -60,7 +60,7 @@ function identity<T>(x: T): T {
   return x;
 }
 
-async function handle(
+export async function handle(
   request: Request,
   _c: ConnInfo,
   { command, args = "" }: Record<string, string>,
@@ -185,18 +185,21 @@ async function handle(
   return new Response(body, responseInit);
 }
 
+
 //#region Server
-await serve(
-  router(
+if (import.meta.main) {
+  await serve(
+    router(
+      {
+        "/": () => new Response("Hello NNTP"),
+        "/favicon.ico": () => new Response(null, { status: 404 }),
+        "/:command/:args*": handle,
+        "/:command/": handle,
+      },
+    ),
     {
-      "/": () => new Response("Hello NNTP"),
-      "/favicon.ico": () => new Response(null, { status: 404 }),
-      "/:command/:args*": handle,
-      "/:command/": handle,
+      port: Number(PORT),
     },
-  ),
-  {
-    port: Number(PORT),
-  },
-);
+  );
+}
 //#endregion
