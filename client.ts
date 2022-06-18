@@ -207,8 +207,13 @@ export class Client implements NNTPClient {
 
     if (typeof input === "string") {
       input = input.toUpperCase() as Command;
+
       const line = [input, ...args.map(normalize)].join(" ");
-      this.#logger!.info(`[C] ${line}`);
+      // Obfucastes password in log.
+      if (input === "AUTHINFO PASS") {
+        args[0] = (args[0]! as string).replace(/./g, "*");
+      }
+      this.#logger!.info(`[C] ${[input, ...args.map(normalize)].join(" ")}`);
       writer.write(new TextEncoder().encode(`${line}\r\n`));
     } else {
       const reader = readerFromStreamReader(input.getReader());
