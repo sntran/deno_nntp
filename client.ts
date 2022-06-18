@@ -83,7 +83,7 @@ export class Client implements NNTPClient {
     options = {
       port: 119,
       logLevel: "INFO",
-      ...options,
+      ...options || {},
     };
     this.#options = options;
   }
@@ -101,13 +101,13 @@ export class Client implements NNTPClient {
    * console.assert(response.ok);
    * ```
    */
-  async connect(): Promise<Response> {
+  async connect(options: ConnectOptions = this.#options): Promise<Response> {
     const {
       hostname,
       port,
       ssl,
       logLevel,
-    } = this.#options;
+    } = options;
 
     await log.setup({
       handlers: {
