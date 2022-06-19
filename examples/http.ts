@@ -83,6 +83,15 @@ export async function handle(
   context: Client | ConnInfo,
   { command, args = "" }: Record<string, string>,
 ): Promise<Response> {
+  if (!(context instanceof Client)) {
+    context = await Client.connect({
+      hostname: NNTP_HOSTNAME,
+      port: Number(NNTP_PORT),
+      ssl: true,
+      logLevel: "INFO",
+    });
+  }
+
   //#region Authorization.
   const authorization = request.headers.get("Authorization");
   if (!authorization) {
@@ -98,16 +107,7 @@ export async function handle(
   const [, base64 = ""] = authorization.match(/^Basic\s+(.*)$/) || [];
   const [username, password] = atob(base64).split(":");
 
-  if (!(context instanceof Client)) {
-    context = await Client.connect({
-      hostname: NNTP_HOSTNAME,
-      port: Number(NNTP_PORT),
-      ssl: true,
-      logLevel: "INFO",
-    });
-  }
-
-  // Authenticates with provider.
+  // Authenticates with provider regardless whether the client is authenticated
   await context.authinfo(username, password);
   //#endregion Authorization
 
