@@ -7,8 +7,8 @@
 export {
   BufReader,
   StringReader,
-} from "https://deno.land/std@0.142.0/io/mod.ts";
-export * from "https://deno.land/std@0.142.0/streams/conversion.ts";
+} from "https://deno.land/std@0.144.0/io/mod.ts";
+export * from "https://deno.land/std@0.144.0/streams/conversion.ts";
 
-import * as log from "https://deno.land/std@0.142.0/log/mod.ts";
+import * as log from "https://deno.land/std@0.144.0/log/mod.ts";
 export { log };

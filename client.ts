@@ -76,6 +76,7 @@ export class Client implements NNTPClient {
   #options: ConnectOptions;
   #connection?: Deno.TcpConn | Deno.TlsConn;
   #logger?: log.Logger;
+  #authenticated = false;
 
   /**
    * Creates a Client and connects to NNTP server and returns its greeting.
@@ -100,6 +101,10 @@ export class Client implements NNTPClient {
       ...options || {},
     };
     this.#options = options;
+  }
+
+  get authenticated() {
+    return this.#authenticated;
   }
 
   /**
@@ -2695,9 +2700,25 @@ export class Client implements NNTPClient {
    * @returns 281 status if authentication accepted, 481 if rejected.
    */
   async authinfo(username: string, password?: string): Promise<Response> {
+    /**
+     * After a successful authentication, the client MUST NOT issue another
+     * AUTHINFO command in the same session.
+     */
+    if (this.#authenticated) {
+      return new Response(null, {
+        status: 281,
+        statusText: "Already authenticated",
+      });
+    }
+
     let response = await this.request("AUTHINFO USER", username);
     if (response.status === 381) {
       response = await this.request("AUTHINFO PASS", password);
+    }
+
+    /** If authentication succeeds, flags it for next time. */
+    if (response.status === 281) {
+      this.#authenticated = true;
     }
 
     return response;

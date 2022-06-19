@@ -1,4 +1,11 @@
-import { assert, assertEquals, assertMatch } from "./dev_deps.ts";
+import {
+  assert,
+  assertEquals,
+  assertMatch,
+  assertSpyCall,
+  assertSpyCalls,
+  stub,
+} from "./dev_deps.ts";
 import { Client, Command } from "./mod.ts";
 
 Deno.test("Client", async (t) => {
@@ -75,6 +82,50 @@ Deno.test("Client", async (t) => {
       assert(body, "should have body");
     });
   });
+
+  /** Stub `client.request` */
+  const authenticatedResponse = Promise.resolve(
+    new Response(null, {
+      status: 281,
+    }),
+  );
+  const requestStub = stub(client, "request", () => authenticatedResponse);
+
+  await t.step("authinfo", async (t) => {
+    await t.step("not authenticated after connecting", () => {
+      // Asserts that our stub has not been called yet.
+      assertSpyCalls(requestStub, 0);
+      assertEquals(client.authenticated, false);
+    });
+
+    await t.step("authenticated after successfull AUTHINFO", async () => {
+      await client.authinfo("foo", "bar");
+
+      // Asserts that our stub was called from `authinfo`.
+      assertSpyCalls(requestStub, 1);
+      // Asserts that the stub request function is called with our stub.
+      assertSpyCall(requestStub, 0, {
+        returned: authenticatedResponse,
+      });
+
+      // Asserts that the client is authenticated afterward.
+      assertEquals(client.authenticated, true);
+    });
+
+    await t.step(
+      "should not try to authenticate again if authenticated",
+      async () => {
+        await client.authinfo("foo", "bar");
+        await client.authinfo("foo", "bar");
+        await client.authinfo("foo", "bar");
+
+        // Asserts that the stub request is only called once.
+        assertSpyCalls(requestStub, 1);
+      },
+    );
+  });
+
+  requestStub.restore();
 
   client.close();
 });
