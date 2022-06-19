@@ -2693,7 +2693,22 @@ export class Client implements NNTPClient {
 }
 
 function normalize(arg: parameter = "") {
+  const stringArg = arg as string;
+
   // Wraps message-id with brackets if not already.
-  if (/^[^<][^@]+@[^>]+$/.test(arg as string)) return `<${arg}>`;
+  if (/^[^<][^@]+@[^>]+$/.test(stringArg)) return `<${arg}>`;
+  // Handles yyyy-mm-dd to yyyymmdd
+  if (/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(stringArg)) {
+    return stringArg.replaceAll("-", "");
+  }
+  // Handles hh:mm:ss time format to hhmmss
+  if (/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/.test(stringArg)) {
+    return stringArg.replaceAll(":", "");
+  }
+  // Handles hh:mm time format to hhmm00
+  if (/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(stringArg)) {
+    return stringArg.replaceAll(":", "") + "00";
+  }
+
   return arg;
 }
