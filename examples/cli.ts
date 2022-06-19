@@ -131,3 +131,5 @@ if (body) {
   const reader = readerFromStreamReader(body.getReader());
   await copy(reader, Deno.stdout);
 }
+
+await client.quit();
