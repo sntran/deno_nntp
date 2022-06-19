@@ -26,6 +26,7 @@ import { Article, Client, Response } from "../mod.ts";
 
 const flags = parse(Deno.args, {
   string: [
+    "_",
     "hostname",
     "port",
     "username",
