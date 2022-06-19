@@ -233,7 +233,7 @@ export class Client implements NNTPClient {
         args[0] = (args[0]! as string).replace(/./g, "*");
       }
       this.#logger!.info(`[C] ${[input, ...args.map(normalize)].join(" ")}`);
-      writer.write(new TextEncoder().encode(`${line}\r\n`));
+      await writer.write(new TextEncoder().encode(`${line}\r\n`));
     } else {
       const reader = readerFromStreamReader(input.getReader());
       // Uses a BufReader to read line by line.
