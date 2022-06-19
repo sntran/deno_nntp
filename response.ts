@@ -1,7 +1,3 @@
-/// <reference no-default-lib="true"/>
-/// <reference lib="deno.ns" />
-/// <reference lib="deno.worker" />
-
 import { BufReader } from "./deps.ts";
 import {
   CR,
@@ -103,7 +99,53 @@ async function parseHeaders(
   return parseHeaders(bufReader, headers);
 }
 
+/**
+ * Response from NNTP server after a command is sent.
+ *
+ * This is very similar to built-in `Response`, with status code and text.
+ *
+ * The `Response` can be constructed manually by passing a `ReadableStream`
+ * bofy, with optional `init`.
+ *
+ * ```ts
+ * import { Response } from "./response.ts";
+ *
+ * const { status, statusText, headers, body } = fetch("https://example.com");
+ * const response = new Response(body, {
+ *   status,
+ *   statusText,
+ *   headers,
+ * });
+ * ```
+ *
+ * However, it's most useful with `Response.from` static method, which can take
+ * a `Reader` and parses both status code and text, and/or headers and body.
+ *
+ * This is mainly used from `Client` to read from the internal NNTP connection.
+ *
+ * If the server responds with a multi-line block, the `Response` contains it
+ * in its `body` as a `ReadableStream` and can be read with `reponse.text()`.
+ *
+ * If an article is responded, its headers are availble in `Response.headers`.
+ *
+ * Note: the built-in `Response` does not accept status code less than 200, but
+ * this keeps the status code as sent by the server.
+ *
+ * It can also be used to read from a file to, for example, send an article to
+ * the NNTP server.
+ *
+ * ```ts
+ * import { Response } from "./response.ts";
+ *
+ * const response = Response.from(Deno.stdin);
+ * ```
+ */
 class NNTPResponse extends Response {
+  /**
+   * Constructs a `Response` from a Reader
+   * @param reader where to read data from.
+   * @returns the Response with all data parsed.
+   */
   static async from(reader: Deno.Reader): Promise<Response> {
     const bufReader = BufReader.create(reader);
     const { status, statusText } = await parseStatus(bufReader);

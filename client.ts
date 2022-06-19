@@ -1,7 +1,3 @@
-/// <reference no-default-lib="true"/>
-/// <reference lib="deno.ns" />
-/// <reference lib="deno.worker" />
-
 import { BufReader, log, readerFromStreamReader } from "./deps.ts";
 
 import {
@@ -58,6 +54,24 @@ export interface NNTPClient {
   authinfo(username: string, password?: string): Promise<Response>;
 }
 
+/**
+ * Client to communite with NNTP server to send command and handle response.
+ *
+ * ```ts
+ * import { Client } from "./client.ts";
+ *
+ * const client: Client = new Client({ hostname: "127.0.0.1", port: 119 });
+ * await client.connect();
+ * const response: Response = await client.capabilities();
+ * console.log({
+ *   status: response.status,
+ *   statusText: response.statusText,
+ *   headers: response.headers,
+ *   body: await response.text(),
+ * });
+ * await client.quit();
+ * ```
+ */
 export class Client implements NNTPClient {
   #options: ConnectOptions;
   #connection?: Deno.TcpConn | Deno.TlsConn;

@@ -1,6 +1,13 @@
+/**
+ * An abstraction for a NNTP article.
+ *
+ * An article can be constructed by a message ID, or a full `RequestInit` with
+ * headers and body.
+ */
 export class Article implements RequestInit {
   body?: BodyInit | null;
   headers: Headers;
+  /** Article number, which can mean anything depending on the context. */
   number?: number;
 
   constructor(init: string | RequestInit = {}) {
@@ -15,6 +22,7 @@ export class Article implements RequestInit {
     this.body = init.body;
   }
 
+  /** The message ID of the article, parsed from headers. */
   get id() {
     return this.headers.get("message-id");
   }
