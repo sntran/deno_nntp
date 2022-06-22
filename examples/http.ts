@@ -29,13 +29,15 @@
  * Note: When sending data with `curl`, use `--data-binary` instead of `--data`
  * to preserve linebreaks, which are essential for parsing.
  */
-import { ConnInfo, serve } from "https://deno.land/std@0.142.0/http/server.ts";
+import { ConnInfo, serve } from "https://deno.land/std@0.144.0/http/server.ts";
 import {
   getCookies,
   setCookie,
-} from "https://deno.land/std@0.142.0/http/cookie.ts";
+} from "https://deno.land/std@0.144.0/http/cookie.ts";
 import { router } from "https://crux.land/router@0.0.12";
 import { Article, Client } from "../mod.ts";
+
+export { Client };
 
 const {
   PORT = 8000,
@@ -71,17 +73,17 @@ function identity<T>(x: T): T {
 export async function handle(
   request: Request,
   context: Client,
-  params: Record<string, string>,
+  params: Record<string, string|string[]>,
 ): Promise<Response>;
 export async function handle(
   request: Request,
   context: ConnInfo,
-  params: Record<string, string>,
+  params: Record<string, string|string[]>,
 ): Promise<Response>;
 export async function handle(
   request: Request,
   context: Client | ConnInfo,
-  { command, args = "" }: Record<string, string>,
+  { command, args = "" }: Record<string, string|string[]>,
 ): Promise<Response> {
   if (!(context instanceof Client)) {
     context = await Client.connect({

@@ -1,13 +1,10 @@
-/// <reference no-default-lib="true"/>
-/// <reference lib="deno.ns" />
-/// <reference lib="deno.worker" />
-import type { ConnInfo } from "https://deno.land/std@0.136.0/http/server.ts";
+import type { ConnInfo } from "https://deno.land/std@0.144.0/http/server.ts";
 import {
   Handler,
   Router,
 } from "https://raw.githubusercontent.com/sntran/hack-n-slash/main/mod.ts";
 import { Pool, Resource } from "https://deno.land/x/pool@v0.1.0/mod.ts";
-import { Client } from "https://raw.githubusercontent.com/sntran/nntp-client/main/mod.ts";
+import { Client } from "../mod.ts";
 
 interface Current {
   group?: string;

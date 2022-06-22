@@ -19,7 +19,7 @@
  *    -B -
  */
 
-import { parse } from "https://deno.land/std@0.142.0/flags/mod.ts";
+import { parse } from "https://deno.land/std@0.144.0/flags/mod.ts";
 import { copy, readerFromStreamReader } from "../deps.ts";
 
 import { Article, Client, Response } from "../mod.ts";
