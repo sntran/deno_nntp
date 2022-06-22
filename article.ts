@@ -45,7 +45,10 @@ export class Article implements RequestInit {
         headers.forEach((value, key) => {
           lines.push(`${key}: ${value}\r\n`);
         });
-        controller.enqueue(encoder.encode(lines.join("")));
+
+        if (lines.length) {
+          controller.enqueue(encoder.encode(lines.join("")));
+        }
 
         if (!body) {
           controller.close();
