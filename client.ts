@@ -265,6 +265,7 @@ export class Client implements NNTPClient {
   }
 
   close() {
+    this.#authenticated = false;
     this.#connection?.close();
   }
 
@@ -408,6 +409,7 @@ export class Client implements NNTPClient {
    */
   async quit(): Promise<Response> {
     const response = await this.request(Command.QUIT);
+    this.#authenticated = false;
     this.#connection?.close();
     return response;
   }

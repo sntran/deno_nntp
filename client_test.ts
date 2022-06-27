@@ -125,7 +125,20 @@ Deno.test("Client", async (t) => {
     );
   });
 
-  requestStub.restore();
-
   client.close();
+
+  await t.step("should reset authentication if reconnect", async () => {
+    assertEquals(client.authenticated, false);
+
+    await client.connect();
+
+    assertEquals(client.authenticated, false);
+
+    await client.authinfo("foo", "bar");
+    assertEquals(client.authenticated, true);
+
+    client.close();
+  });
+
+  requestStub.restore();
 });
